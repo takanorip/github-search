@@ -5,29 +5,67 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GitHub Search</title>
+  <style>
+    #pagination {
+      display: flex;
+      list-style: none;
+    }
+  </style>
 </head>
 <body>
   <div>
     <input id="search" type="text">
     <ul id="list"></ul>
+    <ul id="pagination">
+      <li><button type="button" onclick="handleBack()">Back</button></li>
+      <li><span id="current">-</span>/<span id="total">-</span></li>
+      <li><button type="button" onclick="handleNext()">Next</button></li>
+    </ul>
   </div>
 
   <script>
 
-    const showResults = (results) => {
-      const list = document.querySelector("#list");
+    let currentPage = 1;
+    let currentTotal;
+    let currentKeyword = '';
+
+    const api = "https://api.github.com/search/repositories"
+
+    const list = document.querySelector("#list");
+    const currentNum = document.querySelector("#current");
+    const totalNum = document.querySelector("#total");
+
+    const showResults = (items, total) => {
+      const fragment = document.createDocumentFragment();
       list.textContent = null;
-      if (results && results.length === 0) {
+      if (items && items.length === 0) {
         const li = document.createElement('li');
         li.innerHTML = `No repositories found`;
-        list.appendChild(li);
-      } else if (results && results.length > 0) {
-        results.forEach((result) => {
+        fragment.appendChild(li);
+      } else if (items && items.length > 0) {
+        items.forEach((result) => {
           const li = document.createElement('li');
           li.innerHTML = `<a href="${result.html_url}">${result.full_name}</a>`;
-          list.appendChild(li);
+          fragment.appendChild(li);
         });
       }
+      list.appendChild(fragment);
+
+      if (currentTotal !== total) {
+        totalNum.innerHTML = `${total}`;
+        currentTotal = total;
+      }
+    }
+
+    const updatePageNumber = (current) => {
+      currentNum.innerHTML = `${current}`
+    }
+
+    const showLoading = () => {
+      list.textContent = null;
+      const li = document.createElement('li');
+      li.innerHTML = `Loading...`;
+      list.appendChild(li);
     }
 
     const debounce = function (callback, delay) {
@@ -43,24 +81,46 @@
     }
 
     const getData = (keyword, page) => {
-      const api = "https://api.github.com/search/repositories"
-
+      showLoading();
       fetch(`${api}?q=${keyword}&page=${page ? page : 1}`)
         .then(response => response.json())
-        .then(data => showResults(data.items));
+        .then(data => {
+          showResults(data.items, data.total_count);
+        });
     }
 
     const search = (event, page) => {
-      const keyword = event.target.value
+      const keyword = event.target.value;
+      currentKeyword = keyword;
 
       if (keyword) {
-        getData(keyword)
+        getData(keyword);
+        updatePageNumber(1);
+        currentPage = 1;
       } else {
-        showResults(null)
+        showResults(null);
       }
     }
 
-    const handleInput = debounce(search, 1000);
+    const handleNext = () => {
+      if (currentTotal > currentPage) {
+        const next = currentPage + 1;
+        currentPage = next;
+        updatePageNumber(next);
+        getData(currentKeyword, next);
+      }
+    }
+
+    const handleBack = () => {
+      if (currentPage > 1) {
+        const previous = currentPage - 1;
+        currentPage = previous;
+        updatePageNumber(previous);
+        getData(currentKeyword, previous);
+      }
+    }
+
+    const handleInput = debounce(search, 300);
 
     document.querySelector("#search").addEventListener('input', handleInput);
 
